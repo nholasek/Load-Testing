@@ -163,6 +163,11 @@ public class lts {
     //
     private void handleConnection(Socket socket) throws IOException {
         // TODO: Implement dispatch logic
+        if (keepAlive){
+            handleWithKeepAlive(socket);
+        } else {
+            handleBasic(socket);
+        }
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -406,6 +411,13 @@ public class lts {
     //
     private void handleStaticFile(OutputStream out, String path, boolean shouldKeepAlive) throws IOException {
         // TODO: Implement static file serving with security checks
+        if (path.equals("/")) {
+            path = "/index.html";
+        } else if (path.contains){
+            sendError(out, 403, "Forbidden");
+        }
+
+        Path filePath = Path.get("public", path);
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
