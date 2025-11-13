@@ -371,6 +371,7 @@ public class lts {
     //
     private void dispatchRequest(OutputStream out, String path, boolean shouldKeepAlive) throws IOException {
         // TODO: Implement routing logic
+        handleStaticFile(out, path, shouldKeepAlive);
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
