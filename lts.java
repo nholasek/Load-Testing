@@ -195,6 +195,38 @@ public class lts {
     //
     private void handleBasic(Socket socket) throws IOException {
         // TODO: Implement basic request handling
+       long startTime = System.currentTimeMillis();
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        OutputStream out = socket.getOutputStream();
+
+        String requestLine = in.readLine();
+        if(requestLine==null){
+            return;
+        }
+        Map<String, String> = parseHeaders(in);
+
+        String[] parts = validateRequest(requestLine);
+        if (parts == null){
+            sendError(out, 400, "Bad Request", keepAlive);//can also be false as keep alive should always be false for this to occur
+            return;
+        }
+
+        String method = parts[0];
+        String path = parts[1];
+
+        if (!method.equalsIgnoreCase("GET")){
+            sendError(out, 405, "Method Not Allowed", keepAlive);
+        }
+
+        dispatchRequest(out, path, keepAlive);
+
+        long endTime = System.currentTimeMillis();
+        if(!quiet){
+            System.out.println("Request took " + (endTime - startTime) + "ms");
+        }
+        socket.close();
+
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
