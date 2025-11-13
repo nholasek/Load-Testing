@@ -444,13 +444,27 @@ public class lts {
     //
     private void handleStaticFile(OutputStream out, String path, boolean shouldKeepAlive) throws IOException {
         // TODO: Implement static file serving with security checks
-        if (path.equals("/")) {
+        if ("/".equals(path)) {
             path = "/index.html";
-        } else if (path.contains){
+        } else if (path.contains("..")){
             sendError(out, 403, "Forbidden");
+            return;
         }
 
-        Path filePath = Path.get("public", path);
+        String relativePath = path.startsWith("/") ? path.substring(1) : path;
+        Path filePath = Path.get(PUBLIC_DIR, relativePath).normalize();
+
+        if(!File.exists(filePath) || !File.isRegularFile(filePath)){
+            if(!tryServeCustom404(out, shouldKeepAlive)){
+                sendError(out, 404, "Not Found", shouldKeepAlive);
+            }
+            return;
+        }
+
+        byte[] content = Files.readAllBytes(filePath);
+        String contentType = guessContentType(filePath.toString());
+        sendResponse(out, 200, "OK", contentType, content, null, shouldKeepAlive);
+
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
