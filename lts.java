@@ -204,11 +204,11 @@ public class lts {
         if(requestLine==null){
             return;
         }
-        Map<String, String> = parseHeaders(in);
+        Map<String, String> headers= parseHeaders(in);
 
         String[] parts = validateRequest(requestLine);
         if (parts == null){
-            sendError(out, 400, "Bad Request", keepAlive);//can also be false as keep alive should always be false for this to occur
+            sendError(out, 400, "Bad Request", false);//keep alive should always be false for this to occur
             return;
         }
 
@@ -216,7 +216,7 @@ public class lts {
         String path = parts[1];
 
         if (!method.equalsIgnoreCase("GET")){
-            sendError(out, 405, "Method Not Allowed", keepAlive);
+            sendError(out, 405, "Method Not Allowed", false);
         }
 
         dispatchRequest(out, path, keepAlive);
@@ -447,14 +447,14 @@ public class lts {
         if ("/".equals(path)) {
             path = "/index.html";
         } else if (path.contains("..")){
-            sendError(out, 403, "Forbidden");
+            sendError(out, 403, "Forbidden", shouldKeepAlive);
             return;
         }
 
         String relativePath = path.startsWith("/") ? path.substring(1) : path;
-        Path filePath = Path.get(PUBLIC_DIR, relativePath).normalize();
+        Path filePath = Paths.get(PUBLIC_DIR, relativePath).normalize();
 
-        if(!File.exists(filePath) || !File.isRegularFile(filePath)){
+        if(!Files.exists(filePath) || !Files.isRegularFile(filePath)){
             if(!tryServeCustom404(out, shouldKeepAlive)){
                 sendError(out, 404, "Not Found", shouldKeepAlive);
             }
