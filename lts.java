@@ -534,6 +534,27 @@ public class lts {
                              byte[] body, Map<String, String> extraHeaders, boolean shouldKeepAlive)
                              throws IOException {
         // TODO: Implement HTTP response formatting
+
+        int length = (body == null) ? 0 : body.length;
+
+        PrintWriter writer = new PrintWriter(out, false);
+
+        writer.printf("HTTP/1.1 %d %s\r\n", code, message);
+        writer.printf("Content-Type: %s\r\n", contentType);
+        writer.printf("Content-Length: %d\r\n", length);
+        if (extraHeaders != null) {
+            for (Map.Entry<String, String> header : extraHeaders.entrySet()) {
+                writer.printf("%s: %s\r\n", header.getKey(), header.getValue());
+            }
+        }
+        writer.printf("Connection: %s\r\n", shouldKeepAlive ? "keep-alive" : "close");
+        writer.println();
+        writer.flush();
+
+        if(length > 0 ){
+            out.write(body);
+        }
+        out.flush();
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
