@@ -579,6 +579,8 @@ public class lts {
     private void sendError(OutputStream out, int code, String message, boolean shouldKeepAlive)
                           throws IOException {
         // TODO: Implement error response wrapper
+        String html = String.format("<html><body><h1>%d %s</h1></body></html>", code, message);
+        sendResponse(out, code, message, "text/html", html.getBytes(), null, shouldKeepAlive);
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
