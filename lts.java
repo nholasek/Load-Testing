@@ -112,7 +112,7 @@ public class lts {
                     } else {
                         // Phase 1/2: Handle connection synchronously on main thread
                         handleConnection(clientSocket);
-                        clientSocket.close();
+                        //clientSocket.close();
                     }
                 } catch (IOException e) {
                     System.err.println("Error accepting connection: " + e.getMessage());
@@ -163,7 +163,7 @@ public class lts {
     //
     private void handleConnection(Socket socket) throws IOException {
         // TODO: Implement dispatch logic
-        if (keepAlive){
+        if (keepAlive) {
             handleWithKeepAlive(socket);
         } else {
             handleBasic(socket);
@@ -195,34 +195,37 @@ public class lts {
     //
     private void handleBasic(Socket socket) throws IOException {
         // TODO: Implement basic request handling
-       long startTime = System.currentTimeMillis();
+        long startTime = System.currentTimeMillis();
 
         BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         OutputStream out = socket.getOutputStream();
 
         String requestLine = in.readLine();
-        if(requestLine==null){
+        if (requestLine == null || requestLine.isEmpty()) {
             return;
         }
-        Map<String, String> headers= parseHeaders(in);
+
+        Map<String, String> headers = parseHeaders(in);
 
         String[] parts = validateRequest(requestLine);
-        if (parts == null){
-            sendError(out, 400, "Bad Request", false);//keep alive should always be false for this to occur
+        if (parts == null) {
+            sendError(out, 400, "Bad Request", false);
             return;
         }
 
         String method = parts[0];
         String path = parts[1];
 
-        if (!method.equalsIgnoreCase("GET")){
+        if (!method.equalsIgnoreCase("GET")) {
             sendError(out, 405, "Method Not Allowed", false);
+            return;
         }
 
-        dispatchRequest(out, path, keepAlive);
+        dispatchRequest(out, path, false);
 
-        long endTime = System.currentTimeMillis();
-        if(!quiet){
+        if (!quiet) {
+            long endTime = System.currentTimeMillis();
+            System.out.println("Request: " + method + " " + path);
             System.out.println("Request took " + (endTime - startTime) + "ms");
         }
         socket.close();
@@ -262,6 +265,53 @@ public class lts {
     //
     private void handleWithKeepAlive(Socket socket) throws IOException {
         // TODO: Implement keep-alive request handling with loop
+        socket.setSoTimeout(keepAliveTimeout * 1000);
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        OutputStream out = socket.getOutputStream();
+
+        while (true) {
+            String requestLine;
+
+            try {
+                requestLine = in.readLine();
+            } catch (SocketTimeoutException e) {
+                break;
+            }
+            if (requestLine == null || requestLine.isEmpty()) {
+                break;
+            }
+
+            long startTime = System.currentTimeMillis();
+            Map<String, String> headers = parseHeaders(in);
+            String[] parts = validateRequest(requestLine);
+            if (parts == null) {
+                sendError(out, 400, "Bad Request", false);
+                break;
+            }
+            String method = parts[0];
+            String path = parts[1];
+
+            if (!method.equalsIgnoreCase("GET")) {
+                sendError(out, 405, "Method Not Allowed", false);
+                break;
+            }
+
+            String connectionHeader = headers.getOrDefault("connection", "");
+            boolean clientWantsClose = connectionHeader.equalsIgnoreCase("close");
+            boolean shouldKeepAlive = !clientWantsClose;
+
+            dispatchRequest(out, path, shouldKeepAlive);
+
+            if (!quiet) {
+                long endTime = System.currentTimeMillis();
+                System.out.println("Request took " + (endTime - startTime) + "ms");
+            }
+
+            if (!shouldKeepAlive) {
+                break;
+            }
+        }
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -300,6 +350,19 @@ public class lts {
     //
     private void handleConnectionThreaded(Socket socket) {
         // TODO: Implement virtual thread connection handling
+        Thread.ofVirtual().start(() -> {
+            try {
+                handleConnection(socket);
+            } catch (IOException e) {
+                System.err.println("Error handling connection: " + e.getMessage());
+            } finally {
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                    System.err.println("Error closing socket: " + e.getMessage());
+                }
+            }
+        });
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -350,7 +413,7 @@ public class lts {
         if (parts.length < 2) {
             return null; // Malformed request line
         }
-        return new String[] { parts[0], parts[1] };
+        return new String[]{parts[0], parts[1]};
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -371,7 +434,11 @@ public class lts {
     //
     private void dispatchRequest(OutputStream out, String path, boolean shouldKeepAlive) throws IOException {
         // TODO: Implement routing logic
-        handleStaticFile(out, path, shouldKeepAlive);
+        if (path.startsWith("/echo/")) {
+            handleEcho(out, path, shouldKeepAlive);
+        } else {
+            handleStaticFile(out, path, shouldKeepAlive);
+        }
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -408,7 +475,38 @@ public class lts {
     //   Hint: Use sendError() for all error responses
     //
     private void handleEcho(OutputStream out, String path, boolean shouldKeepAlive) throws IOException {
-        // TODO: Implement echo endpoint with hash generation
+        String[] parts = path.split("/");
+        if (parts.length < 3) {
+            sendError(out, 400, "Bad Request", shouldKeepAlive);
+            return;
+        }
+        int size;
+        try {
+            size = Integer.parseInt(parts[2]);
+        } catch (NumberFormatException e) {
+            sendError(out, 400, "Bad Request", shouldKeepAlive);
+            return;
+        }
+
+        if (size < 0) {
+            sendError(out, 400, "Bad Request", shouldKeepAlive);
+            return;
+        }
+        byte[] payload = generatePayload(size);
+
+        String hashHex;
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(payload);
+            hashHex = bytesToHex(hashBytes);
+        } catch (Exception e) {
+            sendError(out, 500, "Internal Server Error", shouldKeepAlive);
+            return;
+        }
+
+        Map<String, String> extraHeaders = new HashMap<>();
+        extraHeaders.put("X-Payload-Hash", hashHex);
+        sendResponse(out, 200, "OK", "text/plain", payload, extraHeaders, shouldKeepAlive);
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -446,7 +544,7 @@ public class lts {
         // TODO: Implement static file serving with security checks
         if ("/".equals(path)) {
             path = "/index.html";
-        } else if (path.contains("..")){
+        } else if (path.contains("..")) {
             sendError(out, 403, "Forbidden", shouldKeepAlive);
             return;
         }
@@ -454,8 +552,8 @@ public class lts {
         String relativePath = path.startsWith("/") ? path.substring(1) : path;
         Path filePath = Paths.get(PUBLIC_DIR, relativePath).normalize();
 
-        if(!Files.exists(filePath) || !Files.isRegularFile(filePath)){
-            if(!tryServeCustom404(out, shouldKeepAlive)){
+        if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+            if (!tryServeCustom404(out, shouldKeepAlive)) {
                 sendError(out, 404, "Not Found", shouldKeepAlive);
             }
             return;
@@ -489,7 +587,15 @@ public class lts {
     //
     private boolean tryServeCustom404(OutputStream out, boolean shouldKeepAlive) throws IOException {
         // TODO: Implement custom 404 page serving
-        return false; // Placeholder - replace with actual implementation
+        Path custom404Path = Paths.get(PUBLIC_DIR, "404.html");
+
+        if (!Files.exists(custom404Path) || !Files.isRegularFile(custom404Path)) {
+            return false;
+        }
+        byte[] content = Files.readAllBytes(custom404Path);
+        sendResponse(out, 404, "Not Found", "text/html", content, null, shouldKeepAlive);
+
+        return true;
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -531,9 +637,30 @@ public class lts {
     //   Hint: Ternary operator for Connection: (shouldKeepAlive ? "keep-alive" : "close")
     //
     private void sendResponse(OutputStream out, int code, String message, String contentType,
-                             byte[] body, Map<String, String> extraHeaders, boolean shouldKeepAlive)
-                             throws IOException {
+                              byte[] body, Map<String, String> extraHeaders, boolean shouldKeepAlive)
+            throws IOException {
         // TODO: Implement HTTP response formatting
+
+        int length = (body == null) ? 0 : body.length;
+
+        PrintWriter writer = new PrintWriter(out, false);
+
+        writer.printf("HTTP/1.1 %d %s\r\n", code, message);
+        writer.printf("Content-Type: %s\r\n", contentType);
+        writer.printf("Content-Length: %d\r\n", length);
+        if (extraHeaders != null) {
+            for (Map.Entry<String, String> header : extraHeaders.entrySet()) {
+                writer.printf("%s: %s\r\n", header.getKey(), header.getValue());
+            }
+        }
+        writer.printf("Connection: %s\r\n", shouldKeepAlive ? "keep-alive" : "close");
+        writer.print("\r\n");
+        writer.flush();
+
+        if (length > 0) {
+            out.write(body);
+        }
+        out.flush();
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -556,8 +683,10 @@ public class lts {
     //   This is just a simple wrapper - most work is done by sendResponse
     //
     private void sendError(OutputStream out, int code, String message, boolean shouldKeepAlive)
-                          throws IOException {
+            throws IOException {
         // TODO: Implement error response wrapper
+        String html = String.format("<html><body><h1>%d %s</h1></body></html>", code, message);
+        sendResponse(out, code, message, "text/html", html.getBytes(), null, shouldKeepAlive);
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
