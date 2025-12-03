@@ -275,7 +275,7 @@ public class lts {
             try {
                 requestLine = in.readLine();
             } catch (SocketTimeoutException e) {
-                break
+                break;
             }
             if(requestLine==null || requestLine.isEmpty()){
                 break;
@@ -471,6 +471,7 @@ public class lts {
             size = Integer.parseInt(parts[2]);
         } catch (NumberFormatException e){
             sendError(out, 400, "Bad Request", shouldKeepAlive);
+            return;
         }
 
         if (size < 0){
@@ -739,6 +740,7 @@ public class lts {
     //
     private String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
         for (byte b : bytes) {
             sb.append(String.format("%02x", b));
         }
