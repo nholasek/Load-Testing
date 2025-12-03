@@ -264,6 +264,53 @@ public class lts {
     //
     private void handleWithKeepAlive(Socket socket) throws IOException {
         // TODO: Implement keep-alive request handling with loop
+        socket.setSoTimeout(keepAliveTimeout * 1000);
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        OutputStream out = socket.getOutputStream();
+
+        while (true){
+            String requestLine;
+
+            try {
+                requestLine = in.readLine();
+            } catch (SocketTimeoutException e) {
+                break
+            }
+            if(requestLine==null || requestLine.isEmpty()){
+                break;
+            }
+
+            long startTime = System.currentTimeMillis();
+            Map<String, String> headers= parseHeaders(in);
+            String [] parts = validateRequest(requestLine);
+            if(parts == null){
+                sendError(out, 400, "Bad Request", false);
+                break;
+            }
+            String method = parts[0];
+            String path = parts[1];
+
+            if(!method.equalsIgnoreCase("GET")){
+                sendError(out, 405, "Method Not Allowed", false);
+                break;
+            }
+
+            String connectionHeader = headers.getOrDefault("connection", "");
+            boolean clientWantsClose = connectionHeader.equalsIgnoreCase("close");
+            boolean shouldKeepAlive = !clientWantsClose;
+
+            dispatchRequest(out, path, shouldKeepAlive);
+
+            if(!quiet){
+                long endTime = System.currentTimeMillis();
+                System.out.println("Request took " + (endTime - startTime) + "ms");
+            }
+
+            if(!shouldKeepAlive){
+                break;
+            }
+        }
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
