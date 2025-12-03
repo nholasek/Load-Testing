@@ -461,7 +461,37 @@ public class lts {
     //   Hint: Use sendError() for all error responses
     //
     private void handleEcho(OutputStream out, String path, boolean shouldKeepAlive) throws IOException {
-        // TODO: Implement echo endpoint with hash generation
+        String[] parts = path.split("/");
+        if (parts.length < 3){
+            sendError(out, 400, "Bad Request", shouldKeepAlive);
+            return;
+        }
+        int size;
+        try {
+            size = Integer.parseInt(parts[2]);
+        } catch (NumberFormatException e){
+            sendError(out, 400, "Bad Request", shouldKeepAlive);
+        }
+
+        if (size < 0){
+            sendError(out, 400, "Bad Request", shouldKeepAlive);
+            return;
+        }
+        byte[] payload = generatePayload(size);
+
+        String hashHex;
+        try{
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(payload);
+            hashHex = bytesToHex(hashBytes);
+        } catch (Exception e){
+            sendError(out, 500, "Internal Server Error", shouldKeepAlive);
+            return;
+        }
+
+        Map<String, String> extraHeaders = new HashMap<>();
+        extraHeaders.put("X-Payload-Hash", hashHex);
+        sendResponse(out, 200, "OK", "text/plain", payload, extraHeaders, shouldKeepAlive);
     }
 
     //''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
