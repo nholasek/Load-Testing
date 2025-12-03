@@ -112,7 +112,7 @@ public class lts {
                     } else {
                         // Phase 1/2: Handle connection synchronously on main thread
                         handleConnection(clientSocket);
-                        clientSocket.close();
+                        //clientSocket.close();
                     }
                 } catch (IOException e) {
                     System.err.println("Error accepting connection: " + e.getMessage());
@@ -361,7 +361,7 @@ public class lts {
                     System.err.println("Error closing socket: " + e.getMessage());
                 }
             }
-        })
+        });
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -653,7 +653,7 @@ public class lts {
             }
         }
         writer.printf("Connection: %s\r\n", shouldKeepAlive ? "keep-alive" : "close");
-        writer.println();
+        writer.print("\r\n");
         writer.flush();
 
         if (length > 0) {
@@ -754,10 +754,8 @@ public class lts {
     private String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
-            for (byte b : bytes) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
+            sb.append(String.format("%02x", b));
         }
+        return sb.toString();
     }
 }
