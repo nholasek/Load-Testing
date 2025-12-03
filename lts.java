@@ -225,6 +225,7 @@ public class lts {
 
         if (!quiet) {
             long endTime = System.currentTimeMillis();
+            System.out.println("Request: " + method + " " + path);
             System.out.println("Request took " + (endTime - startTime) + "ms");
         }
         socket.close();
