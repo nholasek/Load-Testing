@@ -420,7 +420,11 @@ public class lts {
     //
     private void dispatchRequest(OutputStream out, String path, boolean shouldKeepAlive) throws IOException {
         // TODO: Implement routing logic
-        handleStaticFile(out, path, shouldKeepAlive);
+        if (path.startsWith("/echo/")){
+            handleEcho(out, path, shouldKeepAlive);
+        } else{
+            handleStaticFile(out, path, shouldKeepAlive);
+        }
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
