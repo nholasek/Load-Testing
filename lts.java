@@ -201,14 +201,15 @@ public class lts {
         OutputStream out = socket.getOutputStream();
 
         String requestLine = in.readLine();
-        if(requestLine==null){
+        if(requestLine==null || requestLine.isEmpty()){
             return;
         }
+
         Map<String, String> headers= parseHeaders(in);
 
         String[] parts = validateRequest(requestLine);
         if (parts == null){
-            sendError(out, 400, "Bad Request", false);//keep alive should always be false for this to occur
+            sendError(out, 400, "Bad Request", false);
             return;
         }
 
@@ -217,12 +218,13 @@ public class lts {
 
         if (!method.equalsIgnoreCase("GET")){
             sendError(out, 405, "Method Not Allowed", false);
+            return;
         }
 
-        dispatchRequest(out, path, keepAlive);
+        dispatchRequest(out, path, false);
 
-        long endTime = System.currentTimeMillis();
         if(!quiet){
+            long endTime = System.currentTimeMillis();
             System.out.println("Request took " + (endTime - startTime) + "ms");
         }
         socket.close();
